@@ -53,17 +53,30 @@ class MainScreen {
 		];
 
 		// Generate wall cubes based on map.
-		const boxes = [];
+		const sides = [];
 		for (let i = 0; i < map.length; i++) {
 			if (map[i] === 1) {
-				const x = (i % 16) - 8;
-				const y = Math.floor(i / 16) - 8;
-				boxes.push(...createCube(x * 2, 2, -1, 2, y * 2, 2));
+				const x = (i % 16);
+				const y = Math.floor(i / 16);
+				const xpos = (x - 8) * 2;
+				const ypos = (y - 8) * 2;
+				if (y > 0 && map[i - 16] === 0) {
+					sides.push(...createNorthFace(xpos, 2, -1, 2, ypos, 2));
+				}
+				if (y < 15 && map[i + 16] === 0) {
+					sides.push(...createSouthFace(xpos, 2, -1, 2, ypos, 2));
+				}
+				if (x > 0 && map[i - 1] === 0) {
+					sides.push(...createWestFace(xpos, 2, -1, 2, ypos, 2));
+				}
+				if (x < 15 && map[i + 1] === 0) {
+					sides.push(...createEastFace(xpos, 2, -1, 2, ypos, 2));
+				}
 			}
 		}
 
 		// Generate rendering buffers from vertices.
-		const points = floor.concat(boxes);
+		const points = floor.concat(sides);
 		const vertices = new Float32Array(points);
 		this.#indices = new Uint16Array(generateIndices(points.length / 3));
 		const vao = ctx.createVertexArray();
@@ -129,8 +142,7 @@ class MainScreen {
 	#viewUniformLocation: WebGLUniformLocation;
 }
 
-// Generate six cube planes based on the given dimensions.
-function createCube(
+function createNorthFace(
 	x: number,
 	w: number,
 	y: number,
@@ -143,31 +155,54 @@ function createCube(
 		x + w, y    , z    ,
 		x    , y + h, z    ,
 		x + w, y + h, z    ,
+	];
+}
 
+function createEastFace(
+	x: number,
+	w: number,
+	y: number,
+	h: number,
+	z: number,
+	d: number
+): number[] {
+	return [
 		x + w, y    , z    ,
 		x + w, y    , z + d,
 		x + w, y + h, z    ,
 		x + w, y + h, z + d,
+	];
+}
 
+function createSouthFace(
+	x: number,
+	w: number,
+	y: number,
+	h: number,
+	z: number,
+	d: number
+): number[] {
+	return [
 		x + w, y    , z + d,
 		x    , y    , z + d,
 		x + w, y + h, z + d,
 		x    , y + h, z + d,
+	];
+}
 
+function createWestFace(
+	x: number,
+	w: number,
+	y: number,
+	h: number,
+	z: number,
+	d: number
+): number[] {
+	return [
 		x    , y    , z    ,
 		x    , y    , z + d,
 		x    , y + h, z    ,
 		x    , y + h, z + d,
-
-		x    , y    , z    ,
-		x    , y    , z + d,
-		x + w, y    , z    ,
-		x + w, y    , z + d,
-
-		x    , y + h, z    ,
-		x    , y + h, z + d,
-		x + w, y + h, z    ,
-		x + w, y + h, z + d,
 	];
 }
 
