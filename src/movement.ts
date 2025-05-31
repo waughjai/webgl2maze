@@ -15,6 +15,10 @@ class Movement {
 		return this.#value;
 	}
 
+	setValue(value: number) {
+		this.#value = value;
+	}
+
 	update(forward: boolean, backward: boolean) {
 		this.#velocity.update(forward, backward);
 		this.#value += this.#velocity.getValue();

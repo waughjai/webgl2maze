@@ -2,6 +2,140 @@ import { createShaderProgram } from './shader-program';
 import { Matrix } from './matrix';
 import type { Coord2d } from './types';
 
+class SkyBox {
+	constructor(ctx: WebGL2RenderingContext, projection: Float32Array) {
+		const vertexShaderSource = `#version 300 es
+			in vec4 a_position;
+			in vec2 a_texCoord;
+
+			out vec2 v_texCoord;
+			out float v_y;
+
+			uniform mat4 u_view;
+			uniform mat4 u_projection;
+
+			void main() {
+				gl_Position = u_projection * u_view * a_position;
+				v_texCoord = a_texCoord;
+				v_y = (-a_position.y + 0.5)*1.5;
+			}
+		`;
+	
+		const fragmentShaderSource = `#version 300 es
+			precision mediump float;
+
+			out vec4 outColor;
+
+			in vec2 v_texCoord;
+			in float v_y;
+
+			uniform sampler2D u_texture;
+
+			void main() {
+				vec3 color = texture( u_texture, v_texCoord ).rgb;
+				outColor = vec4(color * vec3(v_y, 0.5, 0.5), 1.0);
+			}
+		`;
+		const program = createShaderProgram(ctx, vertexShaderSource, fragmentShaderSource);
+		if (!program) {
+			throw new Error('Failed to create shader program');
+		}
+		this.#program = program;
+
+		// Setup uniforms.
+		const viewUniformLocation = ctx.getUniformLocation(program, 'u_view');
+		if (!viewUniformLocation) {
+			throw new Error('Failed to get view uniform location');
+		}
+		this.#viewUniformLocation = viewUniformLocation;
+
+		const projectionUniformLocation = ctx.getUniformLocation(program, 'u_projection');
+		ctx.uniformMatrix4fv(projectionUniformLocation, false, projection);
+
+		const textureUniformLocation = ctx.getUniformLocation(program, 'u_texture');
+		if (!textureUniformLocation) {
+			throw new Error('Failed to get texture uniform location');
+		}
+		ctx.uniform1i(textureUniformLocation, 2);
+
+		// Generate rendering buffers from vertices.
+		const vertices = new Float32Array([
+			-1, 1, -1, 0.0, 0.0,
+			1, 1, -1, 8.0, 0.0,
+			-1, -1, -1, 0.0, 2.0,
+			1, -1, -1, 8.0, 2.0,
+		]);
+		this.#indices = new Uint16Array([ 0, 1, 2, 1, 2, 3 ]);
+		const vao = ctx.createVertexArray();
+		if (!vao) {
+			throw new Error('Failed to create VAO');
+		}
+		this.#vao = vao;
+		ctx.bindVertexArray(vao);
+		const vbo = ctx.createBuffer();
+		ctx.bindBuffer(ctx.ARRAY_BUFFER, vbo);
+		ctx.bufferData(ctx.ARRAY_BUFFER, vertices, ctx.STATIC_DRAW);
+		const ebo = ctx.createBuffer();
+		ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, ebo);
+		ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, this.#indices, ctx.STATIC_DRAW);
+		const positionAttributeLocation = ctx.getAttribLocation(program, 'a_position');
+		ctx.enableVertexAttribArray(positionAttributeLocation);
+		ctx.vertexAttribPointer(positionAttributeLocation, 3, ctx.FLOAT, false, 20, 0);
+		const texCoordAttributeLocation = ctx.getAttribLocation(program, 'a_texCoord');
+		if (texCoordAttributeLocation === 0) {
+			throw new Error('Failed to get texture coordinate attribute location');
+		}
+		ctx.enableVertexAttribArray(texCoordAttributeLocation);
+		ctx.vertexAttribPointer(texCoordAttributeLocation, 2, ctx.FLOAT, false, 20, 12);
+
+		// Setup texture.
+		ctx.activeTexture(ctx.TEXTURE2);
+		const texture = ctx.createTexture();
+		if (!texture) {
+			throw new Error('Failed to create texture');
+		}
+		ctx.bindTexture(ctx.TEXTURE_2D, texture);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_S, ctx.REPEAT);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_T, ctx.REPEAT);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.NEAREST);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.NEAREST);
+		const image = new Image();
+		image.src = 'skybox.png';
+		image.onload = () => {
+			ctx.bindTexture(ctx.TEXTURE_2D, texture);
+			ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, ctx.RGBA, ctx.UNSIGNED_BYTE, image);
+			ctx.generateMipmap(ctx.TEXTURE_2D);
+		}
+	}
+
+	update(ctx: WebGL2RenderingContext, rotation: number) {
+		ctx.useProgram(this.#program);
+
+		// Make skybox smoothly rotate around world as player rotates.
+		let x = rotation / ( Math.PI * 4 );
+		while (x > 0.5) {
+			x -= 0.5;
+		}
+		while (x < -0.5) {
+			x += 0.5;
+		}
+
+		const skyboxView = Matrix.createIdentity()
+			.translate(x, 0.5, -100)
+			.scale(400, 100 / (16 / 9), 1)
+			.getList();
+		ctx.uniformMatrix4fv(this.#viewUniformLocation, false, skyboxView);
+
+		ctx.bindVertexArray(this.#vao);
+		ctx.drawElements(ctx.TRIANGLES, this.#indices.length, ctx.UNSIGNED_SHORT, 0);
+	}
+
+	#program: WebGLProgram;
+	#indices: Uint16Array;
+	#vao: WebGLVertexArrayObject;
+	#viewUniformLocation: WebGLUniformLocation;
+}
+
 class Floor {
 	constructor(ctx: WebGL2RenderingContext, program: WebGLProgram) {
 		// Generate rendering buffers from vertices.
@@ -170,13 +304,15 @@ class MainScreen {
 		const vertexShaderSource = `#version 300 es
 			in vec4 a_position;
 			in vec2 a_texCoord;
+
 			out float v_depth;
 			out vec2 v_texCoord;
-			uniform mat4 u_model;
+
 			uniform mat4 u_view;
 			uniform mat4 u_projection;
+
 			void main() {
-				gl_Position = u_projection * u_view * u_model * a_position;
+				gl_Position = u_projection * u_view * a_position;
 				v_depth = gl_Position.z;
 				v_texCoord = a_texCoord;
 			}
@@ -184,14 +320,18 @@ class MainScreen {
 	
 		const fragmentShaderSource = `#version 300 es
 			precision mediump float;
+
 			out vec4 outColor;
+
 			in float v_depth;
 			in vec2 v_texCoord;
+
 			uniform sampler2D u_texture;
 			void main() {
 				float depthFactor = ( 0.25 / v_depth ) * 8.0;
+				vec3 light = vec3(depthFactor * 2.0, depthFactor * 1.5, depthFactor * 1.0);
 				vec3 color = texture( u_texture, v_texCoord ).rgb;
-				outColor = vec4(color * depthFactor, 1.0);
+				outColor = vec4(color * light, 1.0);
 			}
 		`;
 		const program = createShaderProgram(this.#ctx, vertexShaderSource, fragmentShaderSource);
@@ -220,15 +360,18 @@ class MainScreen {
 			throw new Error('Failed to get texture uniform location');
 		}
 		this.#textureUniformLocation = textureUniformLocation;
-
 		this.#walls = new Walls(ctx, program, map);
 		this.#floor = new Floor(ctx, program);
+
+		this.#skybox = new SkyBox(ctx, projection);
 	}
 
 	update(rotation: number, pos: Coord2d) {
 		// Clear the canvas.
 		this.#ctx.clearColor(0.0, 0.0, 0.0, 1.0);
 		this.#ctx.clear(this.#ctx.COLOR_BUFFER_BIT | this.#ctx.DEPTH_BUFFER_BIT);
+
+		this.#skybox.update(this.#ctx, rotation);
 
 		this.#ctx.useProgram(this.#program);
 
@@ -254,6 +397,7 @@ class MainScreen {
 	#program: WebGLProgram;
 	#viewUniformLocation: WebGLUniformLocation;
 	#textureUniformLocation: WebGLUniformLocation;
+	#skybox: SkyBox;
 	#walls: Walls;
 	#floor: Floor;
 }
