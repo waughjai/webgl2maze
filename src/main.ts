@@ -73,7 +73,7 @@ function main(): void {
 
 		// Update graphics.
 		mainScreen.update( rotation.getValue(), pos );
-		mapScreen.update( rotation.getValue(), pos );
+		mapScreen.update( rotation.getValue(), pos, map );
 
 		requestAnimationFrame(update);
 	};

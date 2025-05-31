@@ -40,9 +40,10 @@ class MainScreen {
 			}
 		`;
 		const program = createShaderProgram(this.#ctx, vertexShaderSource, fragmentShaderSource);
-		const positionAttributeLocation = this.#ctx.getAttribLocation(program, 'a_position');
-		const positionBuffer = this.#ctx.createBuffer();
-		this.#ctx.bindBuffer(ctx.ARRAY_BUFFER, positionBuffer);
+		if (!program) {
+			throw new Error('Failed to create shader program');
+		}
+		this.#program = program;
 
 		const floor = [
 			-16.0, -1.0, 16.0,
@@ -77,6 +78,7 @@ class MainScreen {
 		const ebo = ctx.createBuffer();
 		ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, ebo);
 		ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, this.#indices, ctx.STATIC_DRAW);
+		const positionAttributeLocation = this.#ctx.getAttribLocation(program, 'a_position');
 		ctx.enableVertexAttribArray(positionAttributeLocation);
 		ctx.vertexAttribPointer(positionAttributeLocation, 3, ctx.FLOAT, false, 0, 0);
 
@@ -97,6 +99,8 @@ class MainScreen {
 	}
 
 	update(rotation: number, pos: Coord2d) {
+		this.#ctx.useProgram(this.#program);
+
 		// Update camera view.
 		const view = Matrix.createIdentity()
 			.translate(-pos.x, 0, pos.y)
@@ -119,6 +123,7 @@ class MainScreen {
 
 	#canvas: HTMLCanvasElement;
 	#ctx: WebGL2RenderingContext;
+	#program: WebGLProgram;
 	#indices: Uint16Array;
 	#vao: WebGLVertexArrayObject;
 	#viewUniformLocation: WebGLUniformLocation;
