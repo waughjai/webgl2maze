@@ -20,11 +20,11 @@ class MainScreen {
 		const vertexShaderSource = `#version 300 es
 			in vec4 a_position;
 			out float v_depth;
-			uniform mat4 model;
-			uniform mat4 view;
-			uniform mat4 projection;
+			uniform mat4 u_model;
+			uniform mat4 u_view;
+			uniform mat4 u_projection;
 			void main() {
-				gl_Position = projection * view * model * a_position;
+				gl_Position = u_projection * u_view * u_model * a_position;
 				v_depth = gl_Position.z;
 			}
 		`;
@@ -44,23 +44,26 @@ class MainScreen {
 		const positionBuffer = this.#ctx.createBuffer();
 		this.#ctx.bindBuffer(ctx.ARRAY_BUFFER, positionBuffer);
 
+		const floor = [
+			-16.0, -1.0, 16.0,
+			16.0, -1.0, 16.0,
+			-16.0, -1.0, -16.0,
+			16.0, -1.0, -16.0,
+		];
+
+		// Generate wall cubes based on map.
 		const boxes = [];
 		for (let i = 0; i < map.length; i++) {
 			if (map[i] === 1) {
 				const x = (i % 16) - 8;
 				const y = Math.floor(i / 16) - 8;
-				boxes.push(...createCube((x)*2, 2, -1, 2, (y)*2, 2));
+				boxes.push(...createCube(x * 2, 2, -1, 2, y * 2, 2));
 			}
 		}
-	
-		const points = [
-				-16.0, -1.0, 16.0,
-				16.0, -1.0, 16.0,
-				-16.0, -1.0, -16.0,
-				16.0, -1.0, -16.0,
-			].concat(boxes);
+
+		// Generate rendering buffers from vertices.
+		const points = floor.concat(boxes);
 		const vertices = new Float32Array(points);
-	
 		this.#indices = new Uint16Array(generateIndices(points.length / 3));
 		const vao = ctx.createVertexArray();
 		if (!vao) {
@@ -77,34 +80,32 @@ class MainScreen {
 		ctx.enableVertexAttribArray(positionAttributeLocation);
 		ctx.vertexAttribPointer(positionAttributeLocation, 3, ctx.FLOAT, false, 0, 0);
 
-		const modelUniformLocation = ctx.getUniformLocation(program, 'model');
+		// Setup uniforms.
+		const modelUniformLocation = ctx.getUniformLocation(program, 'u_model');
 		const model = Matrix.createIdentity().getList();
+		ctx.uniformMatrix4fv(modelUniformLocation, false, model);
 	
-		const viewUniformLocation = ctx.getUniformLocation(program, 'view');
+		const viewUniformLocation = ctx.getUniformLocation(program, 'u_view');
 		if (!viewUniformLocation) {
 			throw new Error('Failed to get view uniform location');
 		}
-		const view = Matrix.createIdentity().translate(0.0, 0.0, -3.0).getList();
-		ctx.uniformMatrix4fv(viewUniformLocation, false, view);
 		this.#viewUniformLocation = viewUniformLocation;
 	
 		const projection = Matrix.createProjection(Math.PI / 4, aspectRatio, 0.1, 500.0).getList();
-		const projectionUniformLocation = ctx.getUniformLocation(program, 'projection');
+		const projectionUniformLocation = ctx.getUniformLocation(program, 'u_projection');
 		ctx.uniformMatrix4fv(projectionUniformLocation, false, projection);
-	
-		ctx.uniformMatrix4fv(modelUniformLocation, false, model);
-		ctx.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black
-		ctx.clear(ctx.COLOR_BUFFER_BIT);
-		ctx.bindVertexArray(vao);
-		ctx.drawElements(ctx.TRIANGLES, this.#indices.length, ctx.UNSIGNED_SHORT, 0);
 	}
 
 	update(rotation: number, pos: Coord2d) {
+		// Update camera view.
 		const view = Matrix.createIdentity()
 			.translate(-pos.x, 0, pos.y)
 			.rotateY(rotation)
 			.getList();
 		this.#ctx.uniformMatrix4fv(this.#viewUniformLocation, false, view);
+
+		// Clear the canvas and draw the scene.
+		this.#ctx.clearColor(0.0, 0.0, 0.0, 1.0);
 		this.#ctx.clear(this.#ctx.COLOR_BUFFER_BIT | this.#ctx.DEPTH_BUFFER_BIT);
 		this.#ctx.bindVertexArray(this.#vao);
 		this.#ctx.drawElements(this.#ctx.TRIANGLES, this.#indices.length, this.#ctx.UNSIGNED_SHORT, 0);
@@ -123,6 +124,7 @@ class MainScreen {
 	#viewUniformLocation: WebGLUniformLocation;
 }
 
+// Generate six cube planes based on the given dimensions.
 function createCube(
 	x: number,
 	w: number,
@@ -164,6 +166,7 @@ function createCube(
 	];
 }
 
+// Generate indices for the cube vertices.
 function generateIndices(numVertices: number): number[] {
 	const indices = [];
 	for (let i = 0; i < numVertices; i += 4) {

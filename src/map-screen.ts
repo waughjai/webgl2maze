@@ -34,6 +34,7 @@ class MapScreen {
 
 		const program = createShaderProgram(ctx, vertexShaderSource, fragmentShaderSource);
 		
+		// Setup buffer for vertices.
 		const positionAttributeLocation = ctx.getAttribLocation(program, 'a_position');
 		const positionBuffer = ctx.createBuffer();
 		ctx.bindBuffer(ctx.ARRAY_BUFFER, positionBuffer);
@@ -52,24 +53,23 @@ class MapScreen {
 		ctx.enableVertexAttribArray(positionAttributeLocation);
 		ctx.vertexAttribPointer(positionAttributeLocation, 3, ctx.FLOAT, false, 0, 0);
 
-		const model = Matrix.createIdentity()
-			.scale(0.05, 0.05 * aspectRatio, 1.0)
-			.getList();
+		// Setup uniforms.
 		const modelUniformLocation = ctx.getUniformLocation(program, 'u_model');
 		if (!modelUniformLocation) {
 			throw new Error('Uniform location for u_model not found');
 		}
-		ctx.uniformMatrix4fv(modelUniformLocation, false, model);
 		this.#modelUniformLocation = modelUniformLocation;
 	}
 
 	update( rotation: number, pos: Coord2d ) {
+		// Update arrow position and rotation.
 		const model = Matrix.createIdentity()
 			.rotateZ(-rotation)
 			.scale(0.05, 0.05 * this.#aspectRatio, 1.0)
 			.getList();
 		this.#ctx.uniformMatrix4fv(this.#modelUniformLocation, false, model);
 
+		// Clear the canvas and draw the arrow.
 		this.#ctx.clearColor(0.0, 0.0, 0.0, 1.0);
 		this.#ctx.clear(this.#ctx.COLOR_BUFFER_BIT);
 		this.#ctx.bindBuffer(this.#ctx.ARRAY_BUFFER, this.#vao);
