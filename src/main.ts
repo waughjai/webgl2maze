@@ -1,7 +1,7 @@
 import './style.css';
 
 import { Velocity } from './velocity';
-import { Movement } from './movement';
+import { Camera } from './camera';
 import { Controls } from './controls';
 import { MapScreen } from './map-screen';
 import { MainScreen } from './main-screen';
@@ -56,8 +56,9 @@ function main(): void {
 
 	// Setup controls and movement.
 	const controls = new Controls();
-	const rotation = new Movement(0.005, 0.05, 0.9);
-	const acc = new Velocity(0.01, 0.1, 0.9);
+	const camera = new Camera();
+	const vx = new Velocity(0.01, 0.1, 0.9);
+	const vz = new Velocity(0.01, 0.1, 0.9);
 	let pos = {
 		x: 0,
 		y: 0,
@@ -65,15 +66,15 @@ function main(): void {
 	};
 	let jumpState = 'ground';
 	const maxJump = 0.15;
-	const jumpAcc = new Velocity(0.025, maxJump, 0.9);
+	const jumpAcc = new Velocity(0.1, maxJump, 0.9);
 
 	// Setup update loop.
 	const update = () => {
 		// Update controls and movement.
-		rotation.update(controls.isLeftPressed(), controls.isRightPressed());
-		acc.update(controls.isUpPressed(), controls.isDownPressed());
-		pos.x += Math.cos(rotation.getValue() + Math.PI / 2) * acc.getValue();
-		pos.z += Math.sin(rotation.getValue() + Math.PI / 2) * acc.getValue();
+		vx.update(controls.isRightPressed(), controls.isLeftPressed());
+		vz.update(controls.isDownPressed(), controls.isUpPressed());
+		pos.x += vx.getValue();
+		pos.z += vz.getValue();
 
 		if (controls.isZPressed() && jumpState === 'ground') {
 			jumpState = 'jumping';
@@ -89,7 +90,7 @@ function main(): void {
 		}
 
 		if (jumpState === 'falling') {
-			jumpAcc.update(false, true);
+			jumpAcc.update(false, jumpAcc.getValue() < 0.05);
 			pos.y += jumpAcc.getValue();
 			if (pos.y < 0) {
 				pos.y = 0;
@@ -97,9 +98,12 @@ function main(): void {
 				jumpAcc.setValue(0);
 			}
 		}
+		camera.update(controls);
+		camera.follow(pos);
+
 		// Update graphics.
-		mainScreen.update( rotation.getValue(), pos, aspectRatio);
-		mapScreen.update( rotation.getValue(), pos, map );
+		mainScreen.update( 0, pos, camera, aspectRatio);
+		mapScreen.update( 0, pos, map );
 
 		requestAnimationFrame(update);
 	};

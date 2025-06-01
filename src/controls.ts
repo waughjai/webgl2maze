@@ -20,8 +20,42 @@ class Controls {
 				case 'x':
 					this.#x = true;
 					break;
-				default:
-					return false;
+				case 'w':
+					this.#w = true;
+					break;
+				case 'a':
+					this.#a = true;
+					break;
+				case 's':
+					this.#s = true;
+					break;
+				case 'd':
+					this.#d = true;
+					break;
+				case 'r':
+					this.#r = true;
+					break;
+				case 'f':
+					this.#f = true;
+					break;
+				case 'u':
+					this.#u = true;
+					break;
+				case 'h':
+					this.#h = true;
+					break;
+				case 'j':
+					this.#j = true;
+					break;
+				case 'k':
+					this.#k = true;
+					break;
+				case 't':
+					this.#t = true;
+					break;
+				case 'g':
+					this.#g = true;
+					break;
 			}
 			event.preventDefault();
 		});
@@ -46,8 +80,42 @@ class Controls {
 				case 'x':
 					this.#x = false;
 					break;
-				default:
-					return false;
+				case 'w':
+					this.#w = false;
+					break;
+				case 'a':
+					this.#a = false;
+					break;
+				case 's':
+					this.#s = false;
+					break;
+				case 'd':
+					this.#d = false;
+					break;
+				case 'r':
+					this.#r = false;
+					break;
+				case 'f':
+					this.#f = false;
+					break;
+				case 'u':
+					this.#u = false;
+					break;
+				case 'h':
+					this.#h = false;
+					break;
+				case 'j':
+					this.#j = false;
+					break;
+				case 'k':
+					this.#k = false;
+					break;
+				case 't':
+					this.#t = false;
+					break;
+				case 'g':
+					this.#g = false;
+					break;
 			}
 			event.preventDefault();
 		});
@@ -77,12 +145,72 @@ class Controls {
 		return this.#x;
 	}
 
+	isWPressed() {
+		return this.#w;
+	}
+
+	isAPressed() {
+		return this.#a;
+	}
+
+	isSPressed() {
+		return this.#s;
+	}
+
+	isDPressed() {
+		return this.#d;
+	}
+
+	isRPressed() {
+		return this.#r;
+	}
+
+	isFPressed() {
+		return this.#f;
+	}
+
+	isUPressed() {
+		return this.#u;
+	}
+
+	isHPressed() {
+		return this.#h;
+	}
+
+	isJPressed() {
+		return this.#j;
+	}
+
+	isKPressed() {
+		return this.#k;
+	}
+
+	isTPressed() {
+		return this.#t;
+	}
+
+	isGPressed() {
+		return this.#g;
+	}
+
 	#left: boolean = false;
 	#right: boolean = false;
 	#up: boolean = false;
 	#down: boolean = false;
 	#z: boolean = false;
 	#x: boolean = false;
+	#w: boolean = false;
+	#a: boolean = false;
+	#s: boolean = false;
+	#d: boolean = false;
+	#r: boolean = false;
+	#f: boolean = false;
+	#u: boolean = false;
+	#h: boolean = false;
+	#j: boolean = false;
+	#k: boolean = false;
+	#t: boolean = false;
+	#g: boolean = false;
 }
 
 export { Controls };

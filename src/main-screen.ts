@@ -1,6 +1,7 @@
 import { createShaderProgram } from './shader-program';
 import { Matrix } from './matrix';
 import type { Coord3d } from './types';
+import { Camera } from './camera';
 
 class Player {
 	constructor(ctx: WebGL2RenderingContext, projection: Float32Array) {
@@ -9,6 +10,7 @@ class Player {
 			in vec2 a_texCoord;
 
 			out vec2 v_texCoord;
+			out float v_depth;
 
 			uniform mat4 u_model;
 			uniform mat4 u_view;
@@ -17,6 +19,7 @@ class Player {
 			void main() {
 				gl_Position = u_projection * u_view * u_model * a_position;
 				v_texCoord = a_texCoord;
+				v_depth = gl_Position.z;
 			}
 		`;
 	
@@ -26,15 +29,18 @@ class Player {
 			out vec4 outColor;
 
 			in vec2 v_texCoord;
+			in float v_depth;
 
 			uniform sampler2D u_texture;
 
 			void main() {
-				vec4 color = texture( u_texture, v_texCoord ).rgba;
+				vec4 color = texture( u_texture, v_texCoord );
 				if (color.a < 0.1) {
 					discard;
 				}
-				outColor = color;
+				float depthFactor = ( 0.25 / v_depth ) * 8.0;
+				vec3 light = vec3(depthFactor * 2.0, depthFactor * 1.5, depthFactor * 1.0);
+				outColor = vec4(color.rgb * light, 1.0);
 			}
 		`;
 		const program = createShaderProgram(ctx, vertexShaderSource, fragmentShaderSource);
@@ -115,16 +121,19 @@ class Player {
 		}
 	}
 
-	update(ctx: WebGL2RenderingContext, aspectRatio: number, pos: Coord3d, rotation: number) {
+	update(ctx: WebGL2RenderingContext, aspectRatio: number, pos: Coord3d, camera: Camera) {
 		ctx.useProgram(this.#program);
 		const { x, y, z } = pos;
 		const model = Matrix.createIdentity()
 			.scale(0.25, 0.25 * aspectRatio * (302 / 436), 1.0)
-			.translate(x, y - 0.7, -z - 1.0)
+			.translate(x, y - 0.7, z)
 			.getList();
 		ctx.uniformMatrix4fv(this.#modelUniformLocation, false, model);
 		const view = Matrix.createIdentity()
-			.translate(-x, 0, z)
+			.translate(-camera.getX(), -camera.getY(), -camera.getZ())
+			.rotateY(camera.getRotation().y)
+			.rotateX(camera.getRotation().x)
+			.rotateZ(camera.getRotation().z)
 			.getList();
 		ctx.uniformMatrix4fv(this.#viewUniformLocation, false, view);
 		ctx.bindVertexArray(this.#vao);
@@ -503,7 +512,7 @@ class MainScreen {
 		this.#player = new Player(ctx, projection);
 	}
 
-	update(rotation: number, pos: Coord3d, aspectRatio: number) {
+	update(rotation: number, pos: Coord3d, camera: Camera, aspectRatio: number) {
 		// Clear the canvas.
 		this.#ctx.clearColor(0.0, 0.0, 0.0, 1.0);
 		this.#ctx.clear(this.#ctx.COLOR_BUFFER_BIT | this.#ctx.DEPTH_BUFFER_BIT);
@@ -513,16 +522,19 @@ class MainScreen {
 		this.#ctx.useProgram(this.#program);
 
 		// Update camera view.
+		const { x, y, z } = camera.getPos();
 		const view = Matrix.createIdentity()
-			.translate(-pos.x, 0, pos.z)
-			.rotateY(rotation)
+			.translate(-x, -y, -z)
+			.rotateY(camera.getRotation().y)
+			.rotateX(camera.getRotation().x)
+			.rotateZ(camera.getRotation().z)
 			.getList();
 		this.#ctx.uniformMatrix4fv(this.#viewUniformLocation, false, view);
 
 		this.#walls.update(this.#ctx, this.#textureUniformLocation);
 		this.#floor.update(this.#ctx, this.#textureUniformLocation);
 
-		this.#player.update(this.#ctx, aspectRatio, pos, rotation);
+		this.#player.update(this.#ctx, aspectRatio, pos, camera);
 	}
 
 	updateCanvasSize(width: number, height: number) {
