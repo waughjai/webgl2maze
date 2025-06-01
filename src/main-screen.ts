@@ -1,6 +1,142 @@
 import { createShaderProgram } from './shader-program';
 import { Matrix } from './matrix';
-import type { Coord2d } from './types';
+import type { Coord3d } from './types';
+
+class Player {
+	constructor(ctx: WebGL2RenderingContext, projection: Float32Array) {
+		const vertexShaderSource = `#version 300 es
+			in vec4 a_position;
+			in vec2 a_texCoord;
+
+			out vec2 v_texCoord;
+
+			uniform mat4 u_model;
+			uniform mat4 u_view;
+			uniform mat4 u_projection;
+
+			void main() {
+				gl_Position = u_projection * u_view * u_model * a_position;
+				v_texCoord = a_texCoord;
+			}
+		`;
+	
+		const fragmentShaderSource = `#version 300 es
+			precision mediump float;
+
+			out vec4 outColor;
+
+			in vec2 v_texCoord;
+
+			uniform sampler2D u_texture;
+
+			void main() {
+				vec4 color = texture( u_texture, v_texCoord ).rgba;
+				if (color.a < 0.1) {
+					discard;
+				}
+				outColor = color;
+			}
+		`;
+		const program = createShaderProgram(ctx, vertexShaderSource, fragmentShaderSource);
+		if (!program) {
+			throw new Error('Failed to create shader program');
+		}
+		this.#program = program;
+
+		// Setup uniforms.
+		const modelUniformLocation = ctx.getUniformLocation(program, 'u_model');
+		if (!modelUniformLocation) {
+			throw new Error('Failed to get model uniform location');
+		}
+		this.#modelUniformLocation = modelUniformLocation;
+
+		const viewUniformLocation = ctx.getUniformLocation(program, 'u_view');
+		if (!viewUniformLocation) {
+			throw new Error('Failed to get view uniform location');
+		}
+		this.#viewUniformLocation = viewUniformLocation;
+
+		const projectionUniformLocation = ctx.getUniformLocation(program, 'u_projection');
+		ctx.uniformMatrix4fv(projectionUniformLocation, false, projection);
+
+		const textureUniformLocation = ctx.getUniformLocation(program, 'u_texture');
+		if (!textureUniformLocation) {
+			throw new Error('Failed to get texture uniform location');
+		}
+		ctx.uniform1i(textureUniformLocation, 3);
+
+		// Generate rendering buffers from vertices.
+		const vertices = new Float32Array([
+			-1, 1, -1, 0.0, 0.0,
+			1, 1, -1, 1.0, 0.0,
+			-1, -1, -1, 0.0, 1.0,
+			1, -1, -1, 1.0, 1.0,
+		]);
+		this.#indices = new Uint16Array([ 0, 1, 2, 1, 2, 3 ]);
+		const vao = ctx.createVertexArray();
+		if (!vao) {
+			throw new Error('Failed to create VAO');
+		}
+		this.#vao = vao;
+		ctx.bindVertexArray(vao);
+		const vbo = ctx.createBuffer();
+		ctx.bindBuffer(ctx.ARRAY_BUFFER, vbo);
+		ctx.bufferData(ctx.ARRAY_BUFFER, vertices, ctx.STATIC_DRAW);
+		const ebo = ctx.createBuffer();
+		ctx.bindBuffer(ctx.ELEMENT_ARRAY_BUFFER, ebo);
+		ctx.bufferData(ctx.ELEMENT_ARRAY_BUFFER, this.#indices, ctx.STATIC_DRAW);
+		const positionAttributeLocation = ctx.getAttribLocation(program, 'a_position');
+		ctx.enableVertexAttribArray(positionAttributeLocation);
+		ctx.vertexAttribPointer(positionAttributeLocation, 3, ctx.FLOAT, false, 20, 0);
+		const texCoordAttributeLocation = ctx.getAttribLocation(program, 'a_texCoord');
+		if (texCoordAttributeLocation === 0) {
+			throw new Error('Failed to get texture coordinate attribute location');
+		}
+		ctx.enableVertexAttribArray(texCoordAttributeLocation);
+		ctx.vertexAttribPointer(texCoordAttributeLocation, 2, ctx.FLOAT, false, 20, 12);
+
+		// Setup texture.
+		ctx.activeTexture(ctx.TEXTURE3);
+		const texture = ctx.createTexture();
+		if (!texture) {
+			throw new Error('Failed to create texture');
+		}
+		ctx.bindTexture(ctx.TEXTURE_2D, texture);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_S, ctx.REPEAT);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_WRAP_T, ctx.REPEAT);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MIN_FILTER, ctx.NEAREST);
+		ctx.texParameteri(ctx.TEXTURE_2D, ctx.TEXTURE_MAG_FILTER, ctx.NEAREST);
+		const image = new Image();
+		image.src = 'bb.png';
+		image.onload = () => {
+			ctx.bindTexture(ctx.TEXTURE_2D, texture);
+			ctx.texImage2D(ctx.TEXTURE_2D, 0, ctx.RGBA, ctx.RGBA, ctx.UNSIGNED_BYTE, image);
+			ctx.generateMipmap(ctx.TEXTURE_2D);
+		}
+	}
+
+	update(ctx: WebGL2RenderingContext, aspectRatio: number, pos: Coord3d, rotation: number) {
+		ctx.useProgram(this.#program);
+		const { x, y, z } = pos;
+		const model = Matrix.createIdentity()
+			.scale(0.25, 0.25 * aspectRatio * (302 / 436), 1.0)
+			.translate(x, y - 0.7, -z - 1.0)
+			.getList();
+		ctx.uniformMatrix4fv(this.#modelUniformLocation, false, model);
+		const view = Matrix.createIdentity()
+			.translate(-x, 0, z)
+			.getList();
+		ctx.uniformMatrix4fv(this.#viewUniformLocation, false, view);
+		ctx.bindVertexArray(this.#vao);
+		ctx.drawElements(ctx.TRIANGLES, this.#indices.length, ctx.UNSIGNED_SHORT, 0);
+	}
+
+	#program: WebGLProgram;
+	#indices: Uint16Array;
+	#vao: WebGLVertexArrayObject;
+	#modelUniformLocation: WebGLUniformLocation;
+	#viewUniformLocation: WebGLUniformLocation;
+}
 
 class SkyBox {
 	constructor(ctx: WebGL2RenderingContext, projection: Float32Array) {
@@ -364,9 +500,10 @@ class MainScreen {
 		this.#floor = new Floor(ctx, program);
 
 		this.#skybox = new SkyBox(ctx, projection);
+		this.#player = new Player(ctx, projection);
 	}
 
-	update(rotation: number, pos: Coord2d) {
+	update(rotation: number, pos: Coord3d, aspectRatio: number) {
 		// Clear the canvas.
 		this.#ctx.clearColor(0.0, 0.0, 0.0, 1.0);
 		this.#ctx.clear(this.#ctx.COLOR_BUFFER_BIT | this.#ctx.DEPTH_BUFFER_BIT);
@@ -377,13 +514,15 @@ class MainScreen {
 
 		// Update camera view.
 		const view = Matrix.createIdentity()
-			.translate(-pos.x, 0, pos.y)
+			.translate(-pos.x, 0, pos.z)
 			.rotateY(rotation)
 			.getList();
 		this.#ctx.uniformMatrix4fv(this.#viewUniformLocation, false, view);
 
 		this.#walls.update(this.#ctx, this.#textureUniformLocation);
 		this.#floor.update(this.#ctx, this.#textureUniformLocation);
+
+		this.#player.update(this.#ctx, aspectRatio, pos, rotation);
 	}
 
 	updateCanvasSize(width: number, height: number) {
@@ -400,6 +539,7 @@ class MainScreen {
 	#skybox: SkyBox;
 	#walls: Walls;
 	#floor: Floor;
+	#player: Player;
 }
 
 function createNorthFace(

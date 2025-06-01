@@ -14,6 +14,10 @@ class Velocity {
 		return this.#velocity;
 	}
 
+	setValue(value: number) {
+		this.#velocity = value;
+	}
+
 	update(forward: boolean, backward: boolean) {
 		const acc = forward ? this.#startSpeed : (backward ? -this.#startSpeed : 0);
 		this.#velocity += acc;

@@ -61,7 +61,11 @@ function main(): void {
 	let pos = {
 		x: 0,
 		y: 0,
+		z: 0,
 	};
+	let jumpState = 'ground';
+	const maxJump = 0.15;
+	const jumpAcc = new Velocity(0.025, maxJump, 0.9);
 
 	// Setup update loop.
 	const update = () => {
@@ -69,10 +73,32 @@ function main(): void {
 		rotation.update(controls.isLeftPressed(), controls.isRightPressed());
 		acc.update(controls.isUpPressed(), controls.isDownPressed());
 		pos.x += Math.cos(rotation.getValue() + Math.PI / 2) * acc.getValue();
-		pos.y += Math.sin(rotation.getValue() + Math.PI / 2) * acc.getValue();
+		pos.z += Math.sin(rotation.getValue() + Math.PI / 2) * acc.getValue();
 
+		if (controls.isZPressed() && jumpState === 'ground') {
+			jumpState = 'jumping';
+		}
+
+		if (jumpState === 'jumping') {
+			const stillJumping = controls.isZPressed() && jumpAcc.getValue() < maxJump;
+			jumpAcc.update(stillJumping, false);
+			pos.y += jumpAcc.getValue();
+			if (!stillJumping) {
+				jumpState = 'falling';
+			}
+		}
+
+		if (jumpState === 'falling') {
+			jumpAcc.update(false, true);
+			pos.y += jumpAcc.getValue();
+			if (pos.y < 0) {
+				pos.y = 0;
+				jumpState = 'ground';
+				jumpAcc.setValue(0);
+			}
+		}
 		// Update graphics.
-		mainScreen.update( rotation.getValue(), pos );
+		mainScreen.update( rotation.getValue(), pos, aspectRatio);
 		mapScreen.update( rotation.getValue(), pos, map );
 
 		requestAnimationFrame(update);

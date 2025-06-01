@@ -3,7 +3,14 @@ interface Coord2d {
 	y: number;
 }
 
+interface Coord3d {
+	x: number;
+	y: number;
+	z: number;
+}
+
 export type {
 	Coord2d,
+	Coord3d,
 };
 

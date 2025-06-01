@@ -1,6 +1,6 @@
 import { createShaderProgram } from "./shader-program";
 import { Matrix } from "./matrix";
-import type { Coord2d } from "./types";
+import type { Coord3d } from "./types";
 
 class MapArrow {
 	constructor(ctx: WebGL2RenderingContext) {
@@ -65,19 +65,19 @@ class MapArrow {
 		this.#viewUniformLocation = viewUniformLocation;
 	}
 
-	update(ctx: WebGL2RenderingContext, aspectRatio: number, rotation: number, pos: Coord2d) {
+	update(ctx: WebGL2RenderingContext, aspectRatio: number, rotation: number, pos: Coord3d) {
 		ctx.useProgram(this.#program);
 
 		// Update arrow position and rotation.
 		const model = Matrix.createIdentity()
 			.rotateZ(-rotation)
-			.translate(pos.x, pos.y, 0)
+			.translate(pos.x, pos.z, 0)
 			.getList();
 		ctx.uniformMatrix4fv(this.#modelUniformLocation, false, model);
 
 		// Update view matrix based on position.
 		const x = Math.min(Math.max(-pos.x, 0), 0);
-		const y = Math.min(Math.max(-pos.y, -7), 7);
+		const y = Math.min(Math.max(-pos.z, -7), 7);
 		const view = Matrix.createIdentity()
 			.translate(x, y, 0)
 			.scale(1.0 / 16.0, 1.0 / 16.0 * aspectRatio, 1.0);
@@ -168,12 +168,12 @@ class MapSquares {
 		this.#viewUniformLocation = viewUniformLocation;
 	}
 
-	update(ctx: WebGL2RenderingContext, aspectRatio: number, pos: Coord2d, map: readonly number[]) {
+	update(ctx: WebGL2RenderingContext, aspectRatio: number, pos: Coord3d, map: readonly number[]) {
 		ctx.useProgram(this.#program);
 
 		// Update view matrix based on position.
 		const x = Math.min(Math.max(-pos.x, 0), 0);
-		const y = Math.min(Math.max(-pos.y, -7), 7);
+		const y = Math.min(Math.max(-pos.z, -7), 7);
 		const view = Matrix.createTranslation(x, y, 0)
 			.scale(1.0 / 16.0, 1.0 / 16.0 * aspectRatio, 1.0)
 			.getList();
@@ -217,7 +217,7 @@ class MapScreen {
 		this.#squares = new MapSquares(ctx);
 	}
 
-	update(rotation: number, pos: Coord2d, map: readonly number[]) {
+	update(rotation: number, pos: Coord3d, map: readonly number[]) {
 		// Clear the canvas.
 		this.#ctx.clearColor(0.0, 0.0, 0.0, 1.0);
 		this.#ctx.clear(this.#ctx.COLOR_BUFFER_BIT);
